@@ -202,17 +202,16 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
   Widget _markHeader(ThemeData theme) {
     final style = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline);
     Widget col(String text, [double? width]) => SizedBox(width: width, child: Text(text, style: style));
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          col('序号', 32),
-          col('剩余', 104),
-          col('已进行', 104),
-          const Expanded(child: SizedBox()),
-          col('备注'),
-        ],
-      ),
+    // 展开区外层已有 16px 内边距，这里不再加水平内边距：
+    // 序号/剩余/已进行/备注与"倒计时总时间"对齐同一条基准线。
+    return Row(
+      children: [
+        col('序号', 32),
+        col('剩余', 104),
+        col('已进行', 104),
+        const Expanded(child: SizedBox()),
+        col('备注'),
+      ],
     );
   }
 
@@ -221,7 +220,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
       borderRadius: BorderRadius.circular(6),
       onTap: () => _editMark(entry, m, interval),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           children: [
             SizedBox(

@@ -528,8 +528,8 @@ class _TimerPageState extends ConsumerState<TimerPage> {
       child: Row(
         children: [
           col('序号', 32),
-          col('剩余', 104),
-          col('已进行', 104),
+          col('标记点', 104),
+          col('耗时', 104),
           const Expanded(child: SizedBox()),
           col('备注'),
         ],
@@ -550,21 +550,29 @@ class _TimerPageState extends ConsumerState<TimerPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Text('标记记录 · ${timer.marks.length}', style: theme.textTheme.titleSmall),
-            const Spacer(),
-            TextButton.icon(
-              onPressed: controller.undoMark,
-              icon: const Icon(Icons.undo_rounded, size: 18),
-              label: const Text('撤销'),
-            ),
-            TextButton.icon(
-              onPressed: timer.marks.isEmpty ? null : () => _saveMarks(timer),
-              icon: const Icon(Icons.save_outlined, size: 18),
-              label: const Text('保存'),
-            ),
-          ],
+        // 与下方表头/行同样 8px 内边距、按钮去内边距：
+        // 左边"标记记录"对齐"序号"，右边"保存"文字对齐"备注"列右缘（同一条基准线）。
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              Text('标记记录 · ${timer.marks.length}', style: theme.textTheme.titleSmall),
+              const Spacer(),
+              TextButton.icon(
+                style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                onPressed: controller.undoMark,
+                icon: const Icon(Icons.undo_rounded, size: 18),
+                label: const Text('撤销'),
+              ),
+              const SizedBox(width: 16),
+              TextButton.icon(
+                style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                onPressed: timer.marks.isEmpty ? null : () => _saveMarks(timer),
+                icon: const Icon(Icons.save_outlined, size: 18),
+                label: const Text('保存'),
+              ),
+            ],
+          ),
         ),
         _marksHeader(theme),
         Expanded(
