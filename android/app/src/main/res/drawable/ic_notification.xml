@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 通知栏小图标：App 图标同款秒表剪影（表盘圆环 + 顶部按钮 + 盘内斜放沙漏）。
+     通知小图标规范：纯白 alpha 剪影（系统按形状渲染/着色），彩色图标会被压成色块。
+     表盘用描边（stroke）画法而非 evenOdd 镂空——实测部分渲染路径对矢量镂空
+     支持不稳（真机上 v3.4 沙漏的镂空孔洞即未生效），描边圆环最稳。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 表盘圆环 -->
+    <path
+        android:pathData="M12,6.4 A7,7 0 1,0 12,20.4 A7,7 0 1,0 12,6.4"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round" />
+    <!-- 顶部按钮 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M10.3,2.6 L13.7,2.6 L13.7,4.8 L10.3,4.8 Z" />
+    <!-- 盘内斜放沙漏（-30°，同 App 图标） -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M9.2,12.36 L12.5,10.46 L12.43,13.15 L14.8,14.44 L11.5,16.34 L11.57,13.65 Z" />
+</vector>

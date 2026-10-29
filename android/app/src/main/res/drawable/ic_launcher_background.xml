@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 图标背景：深紫(左上) → 亮紫(右下) 对角线渐变。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:angle="315"
+        android:startColor="#4A0E9B"
+        android:endColor="#A855F7"
+        android:type="linear" />
+</shape>
