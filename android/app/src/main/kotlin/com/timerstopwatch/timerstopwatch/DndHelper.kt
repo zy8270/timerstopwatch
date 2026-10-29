@@ -49,6 +49,18 @@ object DndHelper {
         runCatching { nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL) }
     }
 
+    /**
+     * 进程被杀后恢复计时会话时重新接管勿扰：先把勿扰复位为"全部"再开始会话，
+     * 保证 previousFilter 记录的是干净基线——否则会话结束时会把"优先级勿扰"
+     * 当作原状恢复回去，导致勿扰永远卡在开启状态。
+     */
+    fun sessionRestart(context: Context) {
+        val nm = context.getSystemService(NotificationManager::class.java) ?: return
+        if (!nm.isNotificationPolicyAccessGranted) return
+        runCatching { nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL) }
+        sessionStart(context)
+    }
+
     /** 倒计时结束 / 取消 / 响铃关闭：恢复会话前的勿扰状态。 */
     fun sessionEnd(context: Context) {
         if (!sessionActive) return

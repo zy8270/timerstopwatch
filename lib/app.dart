@@ -63,6 +63,11 @@ class _NavShellState extends ConsumerState<NavShell> with WidgetsBindingObserver
     WidgetsBinding.instance.addObserver(this);
     NativeChannel.init(onCall: _onNativeCall);
     WidgetsBinding.instance.addPostFrameCallback((_) => _firstRunGuide());
+    // 被杀后重启时计时会话直接从快照恢复（provider 初始值即活跃），
+    // ref.listen 不会对初始值触发，这里补一次空闲计时启动。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (ref.read(timerProvider).isSessionActive) _restartIdleTimer();
+    });
   }
 
   @override

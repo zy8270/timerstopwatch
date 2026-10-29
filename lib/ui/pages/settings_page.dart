@@ -167,8 +167,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with WidgetsBinding
             onChanged: (v) => ref.read(settingsProvider.notifier).setReminderVibrate(v),
           ),
           _section(theme, '剩余提醒阈值'),
+          SwitchListTile(
+            secondary: const Icon(Icons.school_outlined),
+            title: const Text('考试模式'),
+            subtitle: const Text('开始、剩余15分钟、最后10秒分别播放考试音频；开启后其余提醒停用'),
+            value: settings.examModeEnabled,
+            onChanged: (v) => ref.read(settingsProvider.notifier).setExamModeEnabled(v),
+          ),
           for (final rule in settings.thresholds)
             ListTile(
+              enabled: !settings.examModeEnabled,
               dense: true,
               leading: const Icon(Icons.notifications_outlined),
               title: Text('剩余 ${formatClockFull(Duration(seconds: rule.seconds))} 时提醒'),
@@ -176,6 +184,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with WidgetsBinding
               trailing: _deleteButton(theme, '该阈值', () => ref.read(settingsProvider.notifier).removeThreshold(rule.seconds)),
             ),
           ListTile(
+            enabled: !settings.examModeEnabled,
             dense: true,
             leading: const Icon(Icons.add_rounded),
             title: const Text('添加提醒阈值'),
@@ -261,7 +270,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with WidgetsBinding
             dense: true,
             leading: Icon(Icons.verified_outlined),
             title: Text('版本'),
-            subtitle: Text('v1.0.6'),
+            subtitle: Text('v1.0.7'),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -273,9 +282,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with WidgetsBinding
                     '每条标记显示该节点剩余时间与距上一条标记的间隔，备注可随时补写；'
                     '标记可保存到历史记录并复制导出为表格文本，方便回溯各阶段耗时。', style: theme.textTheme.bodySmall),
                 const SizedBox(height: 8),
-                Text('其他特性：剩余时间多阈值提醒（各配提示音）、'
+                Text('其他特性：剩余时间多阈值提醒（各配提示音）、考试模式（开始/剩15分/最后10秒自动播考试音频）、'
                     '伪熄屏常亮防烧屏、后台悬浮窗与常驻通知（通知栏可直接标记）、'
-                    '勿扰联动、杀进程后仍准时响铃的精确闹铃兜底。', style: theme.textTheme.bodySmall),
+                    '勿扰联动、杀进程后仍准时响铃的精确闹铃兜底、暂停中杀掉应用重开可恢复计时。', style: theme.textTheme.bodySmall),
                 const SizedBox(height: 8),
                 Text('本项目以 MIT 协议开源，欢迎 Star / Issue / PR：', style: theme.textTheme.bodySmall),
                 const SizedBox(height: 4),
@@ -298,8 +307,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with WidgetsBinding
           const AboutListTile(
             icon: Icon(Icons.info_outline_rounded),
             applicationName: '计时器',
-            applicationVersion: 'v1.0.6',
-            aboutBoxChildren: [Text('倒计时 + 时间段标记 + 剩余提醒 + 历史记录 + 伪熄屏常亮 + 悬浮窗/常驻通知 + 勿扰联动')],
+            applicationVersion: 'v1.0.7',
+            aboutBoxChildren: [Text('倒计时 + 时间段标记 + 剩余提醒 + 考试模式 + 历史记录 + 伪熄屏常亮 + 悬浮窗/常驻通知 + 勿扰联动 + 会话恢复')],
           ),
         ],
       ),

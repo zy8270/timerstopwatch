@@ -24,6 +24,13 @@ class NativeChannel {
   static Future<void> soundPlay({String? path, required int seconds, required bool vibrate}) =>
       _inv('soundPlay', {'path': path, 'seconds': seconds, 'vibrate': vibrate});
 
+  /// 考试模式音频：把随包 assets 拷贝到私有目录，返回 key(start/mid15/end)→路径。
+  static Future<Map<String, String>?> ensureExamAudio() async {
+    final raw = await _inv<Map<Object?, Object?>>('ensureExamAudio');
+    if (raw == null) return null;
+    return raw.map((k, v) => MapEntry(k as String, v as String));
+  }
+
   /// 滚轮每滚过一格：线性马达轻震 + 波轮咔哒声（原生 WheelFeedback）。
   static Future<void> wheelTick() => _inv('wheelTick');
 
@@ -81,6 +88,9 @@ class NativeChannel {
   // ---------- 勿扰会话 ----------
 
   static Future<void> dndSessionStart() => _inv('dndSessionStart');
+
+  /// 进程被杀后恢复会话时重新接管勿扰（先复位再开，保证结束时能恢复干净基线）。
+  static Future<void> dndSessionRestart() => _inv('dndSessionRestart');
 
   static Future<void> dndSessionEnd() => _inv('dndSessionEnd');
 

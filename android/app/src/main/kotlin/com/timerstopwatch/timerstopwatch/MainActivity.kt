@@ -48,6 +48,8 @@ class MainActivity : FlutterActivity() {
                         )
                         result.success(null)
                     }
+                    // ---- 考试模式音频：assets 拷贝到私有目录并返回路径 ----
+                    "ensureExamAudio" -> result.success(ExamAudio.ensure(this))
                     // ---- 前台服务 ----
                     "serviceStart" -> {
                         TimerService.start(
@@ -116,6 +118,10 @@ class MainActivity : FlutterActivity() {
                     }
                     "dndSessionStart" -> {
                         DndHelper.sessionStart(this)
+                        result.success(null)
+                    }
+                    "dndSessionRestart" -> {
+                        DndHelper.sessionRestart(this)
                         result.success(null)
                     }
                     "dndSessionEnd" -> {

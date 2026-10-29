@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../models/time_mark.dart';
 import '../services/native_channel.dart';
+import '../services/shared_prefs_provider.dart';
 import 'fake_sleep_controller.dart';
 import 'history_controller.dart';
 import 'settings_controller.dart';
@@ -15,6 +18,22 @@ void _log(String msg) => debugPrint('[timer] $msg');
 /// 平台通道不可用（单元测试等）时静默降级。
 void _setWakelock(bool on) {
   (on ? WakelockPlus.enable() : WakelockPlus.disable()).catchError((Object _) {});
+}
+
+/// 考试模式：剩余 15 分钟提醒节点。
+const int _kExamMidSec = 15 * 60;
+
+/// 考试模式：结束音频长 10 秒，提前 10 秒（剩余 10 秒节点）播放。
+const int _kExamEndAheadSec = 10;
+
+/// 考试模式的固定提醒节点：总时长不大于节点时该节点忽略（与普通阈值口径一致）。
+@visibleForTesting
+List<int> examRulesFor(Duration total) {
+  final t = total.inSeconds;
+  return [
+    if (_kExamMidSec < t) _kExamMidSec,
+    if (_kExamEndAheadSec < t) _kExamEndAheadSec,
+  ];
 }
 
 enum TimerStatus { idle, running, paused, finished }
@@ -76,6 +95,16 @@ class TimerController extends Notifier<TimerState> {
   final Set<int> _firedThresholds = {};
   bool _dndSession = false;
 
+  /// 本会话是否为考试模式（开始时快照设置值，整场生效，中途改设置只影响下一场）。
+  bool _examSession = false;
+
+  /// 仅供测试：当前已触发的提醒节点（考试模式为 900/10）。
+  @visibleForTesting
+  Set<int> get firedThresholdsForTest => Set.of(_firedThresholds);
+
+  /// 考试音频路径（start/mid15/end → 私有目录），首次使用时由原生侧从 assets 拷出。
+  Map<String, String>? _examAudio;
+
   /// 本会话已保存到历史记录的条目 id：
   /// 非空时，后续所有标记的增删改自动同步进该条目，直到会话重置（取消/重新开始/新开始）。
   String? _sessionHistoryId;
@@ -83,11 +112,13 @@ class TimerController extends Notifier<TimerState> {
   @override
   TimerState build() {
     ref.onDispose(_stopTicking);
-    return TimerState(
-      status: TimerStatus.idle,
-      total: const Duration(hours: 1),
-      remaining: const Duration(hours: 1),
-    );
+    // 进程被杀后重启：恢复上次的运行/暂停会话（无快照则回到未开始）。
+    return _restoreSession() ??
+        TimerState(
+          status: TimerStatus.idle,
+          total: const Duration(hours: 1),
+          remaining: const Duration(hours: 1),
+        );
   }
 
   // ---------- 会话控制 ----------
@@ -102,6 +133,7 @@ class TimerController extends Notifier<TimerState> {
   void start() {
     if (state.total <= Duration.zero) return;
     _log('start total=${state.total}');
+    _examSession = ref.read(settingsProvider).examModeEnabled;
     _accumulated = Duration.zero;
     _firedThresholds.clear();
     _sessionHistoryId = null;
@@ -112,6 +144,14 @@ class TimerController extends Notifier<TimerState> {
     _startDndIfEnabled();
     // 常亮：整个倒计时会话期间（进行中或暂停）保持屏幕常亮。
     _setWakelock(true);
+    _persistSession();
+    if (_examSession) {
+      // 开始考试：音频拷出后播放（拷贝失败回退系统提示音）。
+      _prepareExamAudio().then((_) {
+        if (state.status != TimerStatus.running) return;
+        NativeChannel.soundPlay(path: _examAudio?['start'], seconds: 60, vibrate: false);
+      });
+    }
   }
 
   void pause() {
@@ -122,6 +162,7 @@ class TimerController extends Notifier<TimerState> {
     _stopTicking();
     state = state.copyWith(status: TimerStatus.paused, remaining: state.total - _accumulated);
     NativeChannel.servicePause(state.remaining.inMilliseconds);
+    _persistSession();
   }
 
   void resume() {
@@ -131,6 +172,7 @@ class TimerController extends Notifier<TimerState> {
     state = state.copyWith(status: TimerStatus.running);
     _startTicking();
     _syncServiceResume();
+    _persistSession();
   }
 
   /// 取消本次倒计时，回到未开始（保留当前所选总时长）。
@@ -143,6 +185,7 @@ class TimerController extends Notifier<TimerState> {
     _sw = null;
     _accumulated = Duration.zero;
     _sessionHistoryId = null; // 会话结束：历史条目保留，后续标记不再追加
+    _clearSessionSnapshot(); // 会话结束：丢弃恢复快照
     state = TimerState(status: TimerStatus.idle, total: state.total, remaining: state.total);
     NativeChannel.serviceStop();
     _endDnd();
@@ -179,6 +222,7 @@ class TimerController extends Notifier<TimerState> {
     state = state.copyWith(marks: [...state.marks, mark]);
     NativeChannel.serviceLastMark(elapsed.inMilliseconds);
     _syncHistory();
+    _persistSession();
   }
 
   /// 通知「标记」按钮回调。
@@ -192,6 +236,7 @@ class TimerController extends Notifier<TimerState> {
     final lastElapsed = next.isEmpty ? -1 : next.last.elapsed.inMilliseconds;
     NativeChannel.serviceLastMark(lastElapsed);
     _syncHistory();
+    _persistSession();
   }
 
   /// 编辑某条标记：可修改剩余时间节点（已进行按 总时长-剩余 自动重算）与备注。
@@ -208,12 +253,14 @@ class TimerController extends Notifier<TimerState> {
           m,
     ]);
     _syncHistory();
+    _persistSession();
   }
 
   /// 删除某条标记（其余序号保持不变）。
   void removeMark(int seq) {
     state = state.copyWith(marks: state.marks.where((m) => m.seq != seq).toList());
     _syncHistory();
+    _persistSession();
   }
 
   // ---------- 保存到历史记录 ----------
@@ -294,6 +341,7 @@ class TimerController extends Notifier<TimerState> {
     _sw?.stop();
     _sw = null;
     _accumulated = Duration.zero;
+    _clearSessionSnapshot(); // 会话结束：丢弃恢复快照
     state = state.copyWith(status: TimerStatus.finished, remaining: Duration.zero);
     final s = ref.read(settingsProvider);
     // 假睡眠中到点：先恢复亮度与系统栏再响铃（计划 Q3/Q5 决议）。
@@ -310,12 +358,33 @@ class TimerController extends Notifier<TimerState> {
     final s = ref.read(settingsProvider);
     final totalSec = state.total.inSeconds;
     final remSec = remaining.inSeconds;
+    if (_examSession) {
+      // 考试模式：只播考试音频（开始/剩15分/最后10秒），普通阈值整场停用。
+      for (final rule in examRulesFor(state.total)) {
+        if (_firedThresholds.contains(rule)) continue;
+        if (remSec <= rule) {
+          _firedThresholds.add(rule);
+          _log('exam audio fire at remaining=$remSec rule=${rule}s');
+          _persistSession();
+          final isEnd = rule == _kExamEndAheadSec;
+          NativeChannel.soundPlay(
+            path: _examAudioPath(isEnd ? 'end' : 'mid15'),
+            // 结束音频长 10 秒，留 2 秒余量避免尾音被截断。
+            seconds: isEnd ? 12 : 60,
+            vibrate: false,
+          );
+          _showBanner(isEnd ? '最后 10 秒 · 考试提醒' : '剩余 15 分钟 · 考试提醒');
+        }
+      }
+      return;
+    }
     for (final rule in s.thresholds) {
       if (rule.seconds <= 0 || rule.seconds >= totalSec) continue;
       if (_firedThresholds.contains(rule.seconds)) continue;
       if (remSec <= rule.seconds) {
         _firedThresholds.add(rule.seconds);
         _log('reminder fire at remaining=$remSec rule=${rule.seconds}s');
+        _persistSession();
         NativeChannel.soundPlay(path: rule.audioPath, seconds: 5, vibrate: s.reminderVibrate);
         _showBanner('剩余 ${_fmtShort(Duration(seconds: rule.seconds))} 提醒');
       }
@@ -345,6 +414,193 @@ class TimerController extends Notifier<TimerState> {
     if (m > 0) return '$m分${s.toString().padLeft(2, '0')}秒';
     return '$s秒';
   }
+
+  // ---------- 会话快照：退出被杀后恢复 ----------
+
+  static const String _kSessionSnapshot = 'timer_session_v1';
+
+  SharedPreferences get _prefs => ref.read(sharedPrefsProvider);
+
+  /// 当前真实剩余（不依赖 200ms 一次的 UI 刷新值）。
+  Duration get _liveRemaining =>
+      state.total - (_accumulated + (_sw?.elapsed ?? Duration.zero));
+
+  /// 把会话快照写入 prefs（运行中存结束时刻，暂停存剩余；被杀后据此恢复）。
+  void _persistSession() {
+    if (!state.isSessionActive) return;
+    final remaining = _liveRemaining;
+    _prefs.setString(
+      _kSessionSnapshot,
+      jsonEncode({
+        'status': state.status == TimerStatus.running ? 'running' : 'paused',
+        'totalMs': state.total.inMilliseconds,
+        if (state.status == TimerStatus.running)
+          'endWallMs': DateTime.now().millisecondsSinceEpoch + remaining.inMilliseconds
+        else
+          'remainingMs': remaining.inMilliseconds,
+        'marks': [for (final m in state.marks) m.toJson()],
+        'fired': _firedThresholds.toList(),
+        if (_sessionHistoryId != null) 'historyId': _sessionHistoryId,
+        'exam': _examSession,
+      }),
+    );
+  }
+
+  void _clearSessionSnapshot() {
+    _prefs.remove(_kSessionSnapshot);
+  }
+
+  /// 启动时恢复被杀前的会话；无快照/已到点/数据损坏返回 null（回到未开始）。
+  ///
+  /// 注意：本方法运行于 build 阶段，禁止读写 [state]，副作用只经由
+  /// 原生通道与定时器在 build 结束后生效。
+  TimerState? _restoreSession() {
+    final raw = _prefs.getString(_kSessionSnapshot);
+    if (raw == null) return null;
+    Map<String, dynamic> j;
+    try {
+      j = jsonDecode(raw) as Map<String, dynamic>;
+    } catch (_) {
+      _clearSessionSnapshot();
+      return null;
+    }
+    final total = Duration(milliseconds: (j['totalMs'] as num?)?.toInt() ?? 0);
+    if (total <= Duration.zero) {
+      _clearSessionSnapshot();
+      return null;
+    }
+    List<TimeMark> marks;
+    Set<int> fired;
+    try {
+      marks = [
+        for (final e in (j['marks'] as List? ?? [])) TimeMark.fromJson((e as Map).cast<String, dynamic>()),
+      ];
+      fired = {
+        for (final e in (j['fired'] as List? ?? const [])) (e as num).toInt(),
+      };
+    } catch (_) {
+      _clearSessionSnapshot();
+      return null;
+    }
+    final historyId = j['historyId'] as String?;
+    final exam = (j['exam'] as bool?) ?? false;
+    final status = j['status'] as String?;
+
+    if (status == 'paused') {
+      final remaining = Duration(milliseconds: (j['remainingMs'] as num?)?.toInt() ?? 0);
+      if (remaining <= Duration.zero || remaining > total) {
+        _clearSessionSnapshot();
+        return null;
+      }
+      _log('restore paused total=$total remaining=$remaining marks=${marks.length} exam=$exam');
+      _accumulated = total - remaining;
+      _firedThresholds
+        ..clear()
+        ..addAll(fired);
+      _sessionHistoryId = historyId;
+      _examSession = exam;
+      if (exam) _prepareExamAudio();
+      _resyncNativeAfterRestore(remaining: remaining, total: total, marks: marks, paused: true);
+      _scheduleBannerClear('已恢复上次暂停的计时');
+      return TimerState(
+        status: TimerStatus.paused,
+        total: total,
+        remaining: remaining,
+        marks: marks,
+        reminderBanner: '已恢复上次暂停的计时',
+      );
+    }
+
+    if (status == 'running') {
+      final endWall = (j['endWallMs'] as num?)?.toInt() ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if (endWall <= now) {
+        // 被杀期间已到点：响铃由精确闹铃兜底，Dart 侧回到未开始。
+        _log('restore: already ended while dead, drop');
+        _clearSessionSnapshot();
+        return null;
+      }
+      final remaining = Duration(milliseconds: endWall - now);
+      _log('restore running total=$total remaining=$remaining marks=${marks.length} exam=$exam');
+      _accumulated = total - remaining;
+      _firedThresholds
+        ..clear()
+        ..addAll(fired)
+        // 被杀期间错过的提醒节点不补播，直接记为已触发。
+        ..addAll(_missedRuleSeconds(total: total, remaining: remaining, exam: exam));
+      _sessionHistoryId = historyId;
+      _examSession = exam;
+      if (exam) _prepareExamAudio();
+      _sw = Stopwatch()..start();
+      _startTicking();
+      _resyncNativeAfterRestore(remaining: remaining, total: total, marks: marks, paused: false);
+      _scheduleBannerClear('已恢复上次进行中的计时');
+      return TimerState(
+        status: TimerStatus.running,
+        total: total,
+        remaining: remaining,
+        marks: marks,
+        reminderBanner: '已恢复上次进行中的计时',
+      );
+    }
+
+    _clearSessionSnapshot();
+    return null;
+  }
+
+  /// 恢复时已错过、应记为已触发的提醒节点（剩余 ≤ 节点 < 总时长）。
+  Iterable<int> _missedRuleSeconds({
+    required Duration total,
+    required Duration remaining,
+    required bool exam,
+  }) {
+    final secs = exam ? examRulesFor(total) : ref.read(settingsProvider).thresholds.map((r) => r.seconds);
+    final totalSec = total.inSeconds;
+    final remSec = remaining.inSeconds;
+    return secs.where((sec) => sec > 0 && sec < totalSec && sec >= remSec);
+  }
+
+  /// 恢复后重建原生侧联动：前台服务（暂停态通知/精确闹铃）、勿扰、常亮。
+  void _resyncNativeAfterRestore({
+    required Duration remaining,
+    required Duration total,
+    required List<TimeMark> marks,
+    required bool paused,
+  }) {
+    final s = ref.read(settingsProvider);
+    NativeChannel.serviceStart(
+      endWallMs: DateTime.now().millisecondsSinceEpoch + remaining.inMilliseconds,
+      totalMs: total.inMilliseconds,
+      lastMarkMs: marks.isEmpty ? -1 : marks.last.elapsed.inMilliseconds,
+      ringPath: s.ringAudioPath,
+      vibrate: s.ringVibrate,
+      dndLift: s.dndEnabled && s.dndLiftOnRing,
+    );
+    if (paused) NativeChannel.servicePause(remaining.inMilliseconds);
+    if (s.dndEnabled) {
+      _dndSession = true;
+      // 进程死亡时勿扰可能还开着：先复位再接管，保证会话结束能恢复干净基线。
+      NativeChannel.dndSessionRestart();
+    }
+    _setWakelock(true);
+  }
+
+  void _scheduleBannerClear(String text) {
+    _bannerTimer?.cancel();
+    _bannerTimer = Timer(const Duration(seconds: 10), () {
+      if (state.reminderBanner == text) {
+        state = state.copyWith(clearBanner: true);
+      }
+    });
+  }
+
+  /// 首次使用时把考试音频从 assets 拷到私有目录并缓存路径。
+  Future<void> _prepareExamAudio() async {
+    if (_examAudio != null) return;
+    _examAudio = await NativeChannel.ensureExamAudio() ?? {};
+  }
+
+  String? _examAudioPath(String key) => _examAudio?[key];
 
   // ---------- 原生同步 ----------
 

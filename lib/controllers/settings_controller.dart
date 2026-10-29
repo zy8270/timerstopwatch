@@ -36,6 +36,7 @@ class SettingsState {
     this.fakeSleepEnabled = true,
     this.idleTimeoutSec = 60,
     this.thresholds = const [],
+    this.examModeEnabled = false,
     this.notifGuideDone = false,
     this.overlayGuideDone = false,
   });
@@ -49,6 +50,9 @@ class SettingsState {
   final bool fakeSleepEnabled;
   final int idleTimeoutSec;
   final List<ReminderRule> thresholds;
+
+  /// 考试模式：开始/剩余15分/最后10秒播放专用音频，普通阈值提醒停用。
+  final bool examModeEnabled;
   final bool notifGuideDone;
   final bool overlayGuideDone;
 
@@ -76,6 +80,7 @@ class SettingsState {
       fakeSleepEnabled: prefs.getBool(_kFakeSleep) ?? true,
       idleTimeoutSec: prefs.getInt(_kIdleTimeout) ?? 60,
       thresholds: thresholds,
+      examModeEnabled: prefs.getBool(_kExamMode) ?? false,
       notifGuideDone: prefs.getBool(_kGuideNotif) ?? false,
       overlayGuideDone: prefs.getBool(_kGuideOverlay) ?? false,
     );
@@ -90,6 +95,7 @@ class SettingsState {
     bool? fakeSleepEnabled,
     int? idleTimeoutSec,
     List<ReminderRule>? thresholds,
+    bool? examModeEnabled,
     bool? notifGuideDone,
     bool? overlayGuideDone,
   }) {
@@ -102,6 +108,7 @@ class SettingsState {
       fakeSleepEnabled: fakeSleepEnabled ?? this.fakeSleepEnabled,
       idleTimeoutSec: idleTimeoutSec ?? this.idleTimeoutSec,
       thresholds: thresholds ?? this.thresholds,
+      examModeEnabled: examModeEnabled ?? this.examModeEnabled,
       notifGuideDone: notifGuideDone ?? this.notifGuideDone,
       overlayGuideDone: overlayGuideDone ?? this.overlayGuideDone,
     );
@@ -169,6 +176,11 @@ class SettingsController extends Notifier<SettingsState> {
     await _prefs.setString(_kThresholds, jsonEncode(next.map((r) => r.toJson()).toList()));
   }
 
+  Future<void> setExamModeEnabled(bool v) async {
+    state = state.copyWith(examModeEnabled: v);
+    await _prefs.setBool(_kExamMode, v);
+  }
+
   Future<void> markNotifGuideDone() async {
     state = state.copyWith(notifGuideDone: true);
     await _prefs.setBool(_kGuideNotif, true);
@@ -188,6 +200,7 @@ const String _kDndLift = 'dnd_lift_on_ring';
 const String _kFakeSleep = 'fake_sleep_enabled';
 const String _kIdleTimeout = 'idle_timeout_sec';
 const String _kThresholds = 'reminder_thresholds';
+const String _kExamMode = 'exam_mode_enabled';
 const String _kGuideNotif = 'guide_notif_done';
 const String _kGuideOverlay = 'guide_overlay_done';
 
