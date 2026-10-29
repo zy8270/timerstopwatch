@@ -252,10 +252,12 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
             ),
             Expanded(
               child: Text(
-                m.note.isEmpty ? '—' : m.note,
+                m.note.isEmpty ? '点击添加备注' : m.note,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium,
+                style: m.note.isEmpty
+                    ? theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline)
+                    : theme.textTheme.bodyMedium,
               ),
             ),
           ],

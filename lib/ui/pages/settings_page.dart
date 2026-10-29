@@ -261,7 +261,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with WidgetsBinding
             dense: true,
             leading: Icon(Icons.verified_outlined),
             title: Text('版本'),
-            subtitle: Text('v1.0.4'),
+            subtitle: Text('v1.0.6'),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -298,7 +298,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with WidgetsBinding
           const AboutListTile(
             icon: Icon(Icons.info_outline_rounded),
             applicationName: '计时器',
-            applicationVersion: 'v1.0.4',
+            applicationVersion: 'v1.0.6',
             aboutBoxChildren: [Text('倒计时 + 时间段标记 + 剩余提醒 + 历史记录 + 伪熄屏常亮 + 悬浮窗/常驻通知 + 勿扰联动')],
           ),
         ],

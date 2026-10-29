@@ -578,14 +578,15 @@ class _TimerPageState extends ConsumerState<TimerPage> {
         Expanded(
           child: ListView.separated(
             itemCount: timer.marks.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 4),
+            // 行距与历史页标记表一致（行内边距 4，无额外分隔高度）。
+            separatorBuilder: (_, _) => const SizedBox.shrink(),
             itemBuilder: (context, i) {
               final m = timer.marks[i];
               return InkWell(
                 borderRadius: BorderRadius.circular(12),
                 onTap: () => _editMark(context, m, intervalAt(timer.marks, i)),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   child: Row(
                     children: [
                       SizedBox(

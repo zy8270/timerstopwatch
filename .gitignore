@@ -51,3 +51,8 @@ app.*.map.json
 /plan.md
 /f246dfbc80bb212f044ad62579ba5d8d.jpg
 img/计划.jpg
+
+# 签名密钥与密码配置（永不入库）
+android/key.properties
+*.jks
+*.keystore
