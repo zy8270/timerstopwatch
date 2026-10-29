@@ -9,4 +9,4 @@
 | `format_test.dart` | 时间格式化 + 时间输入解析断言 | 改 format.dart 须同步 |
 | `icon_golden_test.dart` | 用 `AppIcon` 离屏渲染桌面图标各密度 PNG（legacy + adaptive 前景）到 `goldens/icon/`，再拷入 android res | **改图标流程：改 `lib/ui/widgets/app_icon.dart` → `flutter test --update-goldens test/icon_golden_test.dart` → 拷贝 PNG 到 `mipmap-*`** |
 
-运行：`flutter test`（全绿 28 项）。
+运行：`flutter test`（全绿 31 项）。
