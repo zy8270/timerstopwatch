@@ -281,11 +281,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with WidgetsBinding
                 const SizedBox(height: 4),
                 InkWell(
                   onTap: () async {
-                    final url = Uri.parse('https://github.com/zy8270');
+                    final url = Uri.parse('https://github.com/zy8270/timerstopwatch');
                     await launchUrl(url, mode: LaunchMode.externalApplication);
                   },
                   child: Text(
-                    'https://github.com/zy8270',
+                    'https://github.com/zy8270/timerstopwatch',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.primary,
                       decoration: TextDecoration.underline,
