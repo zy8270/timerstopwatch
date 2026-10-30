@@ -178,6 +178,12 @@ void main() {
 
   group('设置页：考试模式开关', () {
     testWidgets('开启后其余阈值项置灰禁用，关闭后恢复可用', (tester) async {
+      // 顶部「时钟样式」区块加入后，默认 800x600 视口放不下阈值区（懒加载不构建），
+      // 抬高视口让全页可见。
+      tester.view.physicalSize = const Size(800, 1800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       final prefs = await _freshPrefs();
       await tester.pumpWidget(
         ProviderScope(

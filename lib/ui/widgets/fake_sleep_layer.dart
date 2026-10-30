@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../controllers/fake_sleep_controller.dart';
+import '../../controllers/settings_controller.dart';
 import '../../controllers/timer_controller.dart';
 import '../../core/format.dart';
+import 'analog_clock.dart';
 
 /// 假睡眠覆盖层：纯黑全屏 + 调暗的倒计时时间，位置定期跳变防烧屏；
 /// 点击任意处：时间先以非线性动画回到原位，然后退出假睡眠。
@@ -68,36 +70,66 @@ class _FakeSleepLayerState extends ConsumerState<FakeSleepLayer> {
     final timer = ref.watch(timerProvider);
     final size = MediaQuery.of(context).size;
     final paused = timer.status == TimerStatus.paused;
+    final analog =
+        ref.watch(settingsProvider.select((s) => s.clockStyle)) == ClockStyle.analog;
 
-    final timeText = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          formatClock(timer.remaining),
-          key: const Key('fakeSleepTime'),
-          style: TextStyle(
-            fontSize: 68,
+    // 圆形时钟跟随时钟样式；全白 50% 调暗（弧底稍暗作层次）。
+    // 中心数字样式显式 decoration: none——本层无 Material 祖先语境（v3.6 黄线定案）。
+    final Widget content;
+    final double contentHeight;
+    if (analog) {
+      const clockSize = 280.0;
+      contentHeight = clockSize;
+      content = SizedBox(
+        width: clockSize,
+        height: clockSize,
+        child: AnalogClock(
+          remaining: timer.remaining,
+          total: timer.total,
+          foregroundColor: Colors.white.withValues(alpha: 0.5),
+          trackColor: Colors.white.withValues(alpha: 0.14),
+          progressColor: Colors.white.withValues(alpha: 0.5),
+          timeStyle: TextStyle(
+            fontSize: clockSize / 10,
             fontWeight: FontWeight.w300,
             color: Colors.white.withValues(alpha: 0.5),
             fontFeatures: const [FontFeature.tabularFigures()],
-            // 显式去掉装饰线：防止无 Material 祖先时 fallback 黄色双下划线合并进来。
             decoration: TextDecoration.none,
           ),
         ),
-        if (paused)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Text(
-              '已暂停',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.45),
-                fontSize: 15,
-                decoration: TextDecoration.none,
-              ),
+      );
+    } else {
+      contentHeight = 160; // 数字块（68px 文字 + 暂停标签）的近似高度
+      content = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            formatClock(timer.remaining),
+            key: const Key('fakeSleepTime'),
+            style: TextStyle(
+              fontSize: 68,
+              fontWeight: FontWeight.w300,
+              color: Colors.white.withValues(alpha: 0.5),
+              fontFeatures: const [FontFeature.tabularFigures()],
+              // 显式去掉装饰线：防止无 Material 祖先时 fallback 黄色双下划线合并进来。
+              decoration: TextDecoration.none,
             ),
           ),
-      ],
-    );
+          if (paused)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Text(
+                '已暂停',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.45),
+                  fontSize: 15,
+                  decoration: TextDecoration.none,
+                ),
+              ),
+            ),
+        ],
+      );
+    }
 
     return Positioned.fill(
       child: GestureDetector(
@@ -115,8 +147,8 @@ class _FakeSleepLayerState extends ConsumerState<FakeSleepLayer> {
                   curve: Curves.easeInOutCubic,
                   left: 0,
                   right: 0,
-                  top: size.height / 2 - 80 + _dy,
-                  child: Center(child: timeText),
+                  top: size.height / 2 - contentHeight / 2 + _dy,
+                  child: Center(child: content),
                 ),
               ],
             ),

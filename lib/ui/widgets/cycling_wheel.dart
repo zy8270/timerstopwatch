@@ -15,6 +15,9 @@ import '../../services/native_channel.dart';
 ///   覆盖刚应用的预设（真机 bug：滚轮停在两数字中间时点预设）。
 /// - 外部设值（应用预设）通过 [syncGen] 整组通知：即使本滚轮的值没变，
 ///   滚动中的滚轮也要归位；手指按住时等松手再应用，惯性滚动中立即跳转。
+/// - 自己提交的回声不算外部设值（按"最近同步给父级的值"识别）：
+///   连续拨动时提交回声常在手指已再次按下时到达，误判会让滚轮在下一次
+///   停止时闪回上一拨的落点（真机 bug）。
 class CyclingWheel extends StatefulWidget {
   const CyclingWheel({
     super.key,
@@ -62,6 +65,13 @@ class _CyclingWheelState extends State<CyclingWheel> {
   /// 非空期间滚轮不提交滞留值，保证外部设值不被旧值覆盖。
   int? _pendingExternal;
 
+  /// 最近一次同步给父级的取值（自己提交的、或已应用的外部值）。
+  /// 父级把刚提交的值原样传回来只是回声，不算外部设值——否则连续拨动时
+  /// （惯性滑行中手指已再次按下，提交回声在 pointers>0 时到达），上一甩的
+  /// 落点会被挂成待应用外部值，下一甩停止时强制跳回 → 真机闪值 bug。
+  /// 预设归位不受影响：整组设值有 syncGen 护送，值相同也照样归位。
+  late int _syncedValue;
+
   /// 手指按在本滚轮上的指针数：>0 时外部值等松手再应用，避免与拖拽拉扯。
   int _pointers = 0;
 
@@ -69,13 +79,16 @@ class _CyclingWheelState extends State<CyclingWheel> {
   void initState() {
     super.initState();
     _base = _loops ~/ 2 * widget.count;
+    _syncedValue = widget.value;
     _controller = FixedExtentScrollController(initialItem: _base + widget.value);
   }
 
   @override
   void didUpdateWidget(CyclingWheel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final external = widget.syncGen != oldWidget.syncGen || widget.value != oldWidget.value;
+    // 只认"非自己刚提交的"变化为外部设值；syncGen 变化整组都算（预设值
+    // 恰好等于当前显示值时也要归位）。
+    final external = widget.syncGen != oldWidget.syncGen || widget.value != _syncedValue;
     if (!external) return;
     _pendingExternal = widget.value;
     if (_pointers > 0) return; // 手指仍按在滚轮上：ScrollEnd（松手后停止）时应用
@@ -84,6 +97,7 @@ class _CyclingWheelState extends State<CyclingWheel> {
       final v = _pendingExternal;
       if (v == null) return; // 已在滚动结束路径应用
       _pendingExternal = null;
+      _syncedValue = v;
       final target = _base + v;
       if (_controller.selectedItem != target) _jumpSilently(target);
     });
@@ -117,12 +131,15 @@ class _CyclingWheelState extends State<CyclingWheel> {
     final pending = _pendingExternal;
     if (pending != null) {
       _pendingExternal = null;
-      _jumpSilently(_base + pending);
+      _syncedValue = pending;
+      final target = _base + pending;
+      if (_controller.selectedItem != target) _jumpSilently(target);
       // 跳转期间的通知已被 _programmatic 拦截；跳转后 norm == value，无需提交。
       return;
     }
     final item = _controller.selectedItem;
     final norm = item % widget.count;
+    _syncedValue = norm; // 先记录：onChanged 触发的父级回声不能算外部设值
     if (norm != widget.value) widget.onChanged(norm);
     final mid = _loops ~/ 2 * widget.count;
     if ((item - mid).abs() > mid ~/ 2) {

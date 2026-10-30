@@ -26,6 +26,18 @@ class ReminderRule {
       );
 }
 
+/// 倒计时显示样式：模拟表盘（圆形时钟）或数字（电子时钟）。
+enum ClockStyle {
+  analog('圆形时钟'),
+  digital('电子时钟');
+
+  const ClockStyle(this.label);
+  final String label;
+
+  static ClockStyle fromName(String? name) =>
+      name == ClockStyle.analog.name ? ClockStyle.analog : ClockStyle.digital;
+}
+
 class SettingsState {
   const SettingsState({
     this.ringAudioPath,
@@ -37,6 +49,7 @@ class SettingsState {
     this.idleTimeoutSec = 60,
     this.thresholds = const [],
     this.examModeEnabled = false,
+    this.clockStyle = ClockStyle.digital,
     this.notifGuideDone = false,
     this.overlayGuideDone = false,
   });
@@ -53,6 +66,9 @@ class SettingsState {
 
   /// 考试模式：开始/剩余15分/最后10秒播放专用音频，普通阈值提醒停用。
   final bool examModeEnabled;
+
+  /// 倒计时显示样式（圆形/电子时钟）。
+  final ClockStyle clockStyle;
   final bool notifGuideDone;
   final bool overlayGuideDone;
 
@@ -81,6 +97,7 @@ class SettingsState {
       idleTimeoutSec: prefs.getInt(_kIdleTimeout) ?? 60,
       thresholds: thresholds,
       examModeEnabled: prefs.getBool(_kExamMode) ?? false,
+      clockStyle: ClockStyle.fromName(prefs.getString(_kClockStyle)),
       notifGuideDone: prefs.getBool(_kGuideNotif) ?? false,
       overlayGuideDone: prefs.getBool(_kGuideOverlay) ?? false,
     );
@@ -96,6 +113,7 @@ class SettingsState {
     int? idleTimeoutSec,
     List<ReminderRule>? thresholds,
     bool? examModeEnabled,
+    ClockStyle? clockStyle,
     bool? notifGuideDone,
     bool? overlayGuideDone,
   }) {
@@ -109,6 +127,7 @@ class SettingsState {
       idleTimeoutSec: idleTimeoutSec ?? this.idleTimeoutSec,
       thresholds: thresholds ?? this.thresholds,
       examModeEnabled: examModeEnabled ?? this.examModeEnabled,
+      clockStyle: clockStyle ?? this.clockStyle,
       notifGuideDone: notifGuideDone ?? this.notifGuideDone,
       overlayGuideDone: overlayGuideDone ?? this.overlayGuideDone,
     );
@@ -181,6 +200,11 @@ class SettingsController extends Notifier<SettingsState> {
     await _prefs.setBool(_kExamMode, v);
   }
 
+  Future<void> setClockStyle(ClockStyle v) async {
+    state = state.copyWith(clockStyle: v);
+    await _prefs.setString(_kClockStyle, v.name);
+  }
+
   Future<void> markNotifGuideDone() async {
     state = state.copyWith(notifGuideDone: true);
     await _prefs.setBool(_kGuideNotif, true);
@@ -201,6 +225,7 @@ const String _kFakeSleep = 'fake_sleep_enabled';
 const String _kIdleTimeout = 'idle_timeout_sec';
 const String _kThresholds = 'reminder_thresholds';
 const String _kExamMode = 'exam_mode_enabled';
+const String _kClockStyle = 'clock_style';
 const String _kGuideNotif = 'guide_notif_done';
 const String _kGuideOverlay = 'guide_overlay_done';
 

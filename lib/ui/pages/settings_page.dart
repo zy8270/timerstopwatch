@@ -146,6 +146,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with WidgetsBinding
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
+          _section(theme, '时钟样式'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SegmentedButton<ClockStyle>(
+              segments: [
+                ButtonSegment(
+                  value: ClockStyle.analog,
+                  icon: const Icon(Icons.schedule_outlined),
+                  label: const Text('圆形时钟'),
+                ),
+                ButtonSegment(
+                  value: ClockStyle.digital,
+                  icon: const Icon(Icons.timer_outlined),
+                  label: const Text('电子时钟'),
+                ),
+              ],
+              selected: {settings.clockStyle},
+              onSelectionChanged: (s) => ref.read(settingsProvider.notifier).setClockStyle(s.first),
+            ),
+          ),
           _section(theme, '提示音'),
           ListTile(
             leading: const Icon(Icons.alarm_rounded),
@@ -270,7 +290,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with WidgetsBinding
             dense: true,
             leading: Icon(Icons.verified_outlined),
             title: Text('版本'),
-            subtitle: Text('v1.0.7'),
+            subtitle: Text('v1.0.8'),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -307,8 +327,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with WidgetsBinding
           const AboutListTile(
             icon: Icon(Icons.info_outline_rounded),
             applicationName: '计时器',
-            applicationVersion: 'v1.0.7',
-            aboutBoxChildren: [Text('倒计时 + 时间段标记 + 剩余提醒 + 考试模式 + 历史记录 + 伪熄屏常亮 + 悬浮窗/常驻通知 + 勿扰联动 + 会话恢复')],
+            applicationVersion: 'v1.0.8',
+            aboutBoxChildren: [Text('倒计时(圆形/电子时钟) + 时间段标记 + 剩余提醒 + 考试模式 + 历史记录 + 伪熄屏常亮 + 悬浮窗/常驻通知 + 勿扰联动 + 会话恢复')],
           ),
         ],
       ),

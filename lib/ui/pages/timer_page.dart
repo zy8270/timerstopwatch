@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../controllers/presets_controller.dart';
+import '../../controllers/settings_controller.dart';
 import '../../controllers/timer_controller.dart';
 import '../../core/format.dart';
 import '../../models/time_mark.dart';
 import '../../services/native_channel.dart';
+import '../widgets/analog_clock.dart';
 import '../widgets/cycling_wheel.dart';
 import '../widgets/mark_edit_dialog.dart';
 
@@ -391,6 +393,45 @@ class _TimerPageState extends ConsumerState<TimerPage> {
 
   // ---------- 进行中 / 已暂停 ----------
 
+  /// 倒计时显示：按设置的时钟样式切换（圆形表盘 / 电子数字）。
+  /// [emphasisColor] 仅作用于结束态强调色（数字或中心文字）。
+  Widget _buildCountdown(ThemeData theme, TimerState timer, {Color? emphasisColor}) {
+    final style = ref.watch(settingsProvider.select((s) => s.clockStyle));
+    if (style == ClockStyle.analog) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: AnalogClock(
+            remaining: timer.remaining,
+            total: timer.total,
+            timeStyle: emphasisColor == null
+                ? null
+                : Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w500,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                    color: emphasisColor,
+                  ),
+          ),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Center(
+        child: Text(
+          formatClock(timer.remaining),
+          style: theme.textTheme.displayLarge?.copyWith(
+            fontSize: 64,
+            fontFeatures: const [FontFeature.tabularFigures()],
+            fontWeight: FontWeight.w300,
+            color: emphasisColor,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildRunning(BuildContext context, ThemeData theme, TimerState timer) {
     final running = timer.status == TimerStatus.running;
     final controller = ref.read(timerProvider.notifier);
@@ -407,19 +448,7 @@ class _TimerPageState extends ConsumerState<TimerPage> {
             ),
           ),
         if (timer.reminderBanner != null) const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Center(
-            child: Text(
-              formatClock(timer.remaining),
-              style: theme.textTheme.displayLarge?.copyWith(
-                fontSize: 64,
-                fontFeatures: const [FontFeature.tabularFigures()],
-                fontWeight: FontWeight.w300,
-              ),
-            ),
-          ),
-        ),
+        _buildCountdown(theme, timer),
         if (!running)
           Center(
             child: Padding(
@@ -465,20 +494,7 @@ class _TimerPageState extends ConsumerState<TimerPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Center(
-            child: Text(
-              formatClock(timer.remaining),
-              style: theme.textTheme.displayLarge?.copyWith(
-                fontSize: 64,
-                fontFeatures: const [FontFeature.tabularFigures()],
-                fontWeight: FontWeight.w300,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-          ),
-        ),
+        _buildCountdown(theme, timer, emphasisColor: theme.colorScheme.primary),
         Center(child: Text('倒计时结束', style: theme.textTheme.titleMedium)),
         const SizedBox(height: 8),
         Expanded(child: _buildMarksPanel(theme, timer)),

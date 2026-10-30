@@ -95,4 +95,56 @@ void main() {
         reason: '吸附动画中点预设，最终值应为预设');
     await expectWheelStillAlive(tester, c);
   });
+
+  /// 真机反馈：连续拨动滚轮两下以上，停止时闪回第一下的落点数字。
+  ///
+  /// 机理：惯性滑行中手指已再次按下（拖拽手势未赢仲裁、惯性继续滑到停），
+  /// 第一下的提交回声（父级 setState 把刚提交的值传回滚轮）在 pointers>0
+  /// 时到达 didUpdateWidget，被误判为外部设值挂起；第二下滚动停止时
+  /// _onScrollEnd 强制兑现挂起值 → 滚轮跳回第一下的落点（闪值），第二下的选择被丢弃。
+  testWidgets('场景D：连续拨动，停止后应提交最后一拨的落点而非闪回上一拨', (tester) async {
+    final c = await boot();
+    await pumpPage(tester, c);
+
+    // 甩出惯性后立刻按住（模拟连续快拨：手指落下时上一甩还在滑行）
+    Future<TestGesture> flickAndHold(Offset velocityOffset, double velocity) async {
+      await tester.fling(secondsWheel, velocityOffset, velocity);
+      await tester.pump(const Duration(milliseconds: 20)); // 惯性滑行中
+      return tester.startGesture(tester.getCenter(secondsWheel));
+    }
+
+    // 模拟真实手指的连续慢拖（单次瞬移事件在测试环境不产生滚动）：
+    // n × 10px，累计跨过至少一格边界后吸附到下一格。
+    Future<void> dragBySteps(TestGesture g, int n) async {
+      for (int i = 0; i < n; i++) {
+        await g.moveBy(const Offset(0, -10));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+    }
+
+    // 第一甩：按住等惯性自己滑到停（手指按住不等于抓住滚轮，仲裁未定惯性不停）
+    final g1 = await flickAndHold(const Offset(0, -120), 2000);
+    await tester.pumpAndSettle();
+    final firstStop = c.read(timerProvider).total.inSeconds % 60;
+
+    // 第二拨：从停点慢拖 60px（1.25 格，必跨过一格边界）
+    await dragBySteps(g1, 6);
+    await g1.up();
+    await tester.pumpAndSettle();
+
+    final secondStop = (firstStop + 1) % 60;
+    expect(c.read(timerProvider).total, Duration(hours: 1, seconds: secondStop),
+        reason: '第二拨停下的值应生效；闪值 bug 时会跳回第一下的 $firstStop');
+
+    // 第三拨（用户反馈"两下以上必然复现"）：甩出惯性按住 → 停稳读落点 → 慢拖一格 → 松手
+    final g2 = await flickAndHold(const Offset(0, -120), 2000);
+    await tester.pumpAndSettle();
+    final thirdFlickStop = c.read(timerProvider).total.inSeconds % 60;
+    await dragBySteps(g2, 6);
+    await g2.up();
+    await tester.pumpAndSettle();
+
+    expect(c.read(timerProvider).total, Duration(hours: 1, seconds: (thirdFlickStop + 1) % 60),
+        reason: '第三拨停下的值应生效，而不是闪回第三甩的落点 $thirdFlickStop');
+  });
 }
