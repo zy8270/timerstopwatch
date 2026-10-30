@@ -56,3 +56,6 @@ img/计划.jpg
 android/key.properties
 *.jks
 *.keystore
+
+# 用户密钥备份文件夹（含密码文本，永不入库）
+/jks/
