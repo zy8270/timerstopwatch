@@ -8,9 +8,10 @@
 | `v36_fixes_test.dart` | v3.6 三项修复回归：假睡眠层不继承黄色下划线 fallback 样式；已进行=相邻标记间隔（intervalAt + 导出文本）；历史条目内单条标记编辑；预设拖动边界抖动不震荡（迟滞带） | 改假睡眠层/标记口径/预设拖动须保持通过 |
 | `exam_mode_test.dart` | **v3.10 考试模式与会话恢复**：考试开关持久化、examRulesFor 节点口径（≥总时长忽略）、暂停/运行快照写入与杀进程后恢复（剩余/标记/已触发节点保留、错过的提醒不补播、已到点丢弃、损坏快照安全回退、结束清快照）、设置页考试开关置灰其余阈值项 | 改快照结构/考试节点/恢复逻辑须同步此处 |
 | `clock_style_test.dart` | **v3.11 时钟样式**：设置页顶部切换（默认电子、点圆形立即生效并写入 `clock_style`、切回电子）、持久化加载（analog 恢复 / 非法值兜底 digital）、倒计时进行页按样式渲染（数字↔表盘） | 改 ClockStyle/设置页分段按钮/`_buildCountdown` 分发须同步 |
+| `theme_settings_test.dart` | **v3.12 主题定制**：默认浅紫+跟随系统与未知值兜底；配色弹窗（7 个图标选项、点选立即生效并写 `theme_palette`）；日/夜间分段按钮持久化（`theme_mode`）；弹窗内模式选择器与配色网格同宽对齐（v3.14）；TimerApp 的 themeMode 与深浅主题 primary 随设置联动 | 改 AppPalette/AppThemeMode/设置页主题区块/TimerApp 主题生成须同步 |
 | `format_test.dart` | 时间格式化 + 时间输入解析断言 | 改 format.dart 须同步 |
-| `icon_golden_test.dart` | 用 `AppIcon` 离屏渲染桌面图标各密度 PNG（legacy + adaptive 前景）到 `goldens/icon/`，再拷入 android res | **改图标流程：改 `lib/ui/widgets/app_icon.dart` → `flutter test --update-goldens test/icon_golden_test.dart` → 拷贝 PNG 到 `mipmap-*`** |
+| `icon_golden_test.dart` | 用 `AppIcon` 离屏渲染桌面图标 PNG 到 `goldens/icon/`：**各配色 × 各密度 legacy 全彩一套（v3.12，键名=AppPalette.name）** + adaptive 前景（白色图形、各配色共用），再拷入 android res | **改图标流程：改 `lib/ui/widgets/app_icon.dart` 或配色 → `flutter test --update-goldens test/icon_golden_test.dart` → 按 `tool/README.md` 的拷贝命令写入 `mipmap-*`** |
 
-运行：`flutter test`（全绿 44 项）。
+运行：`flutter test`（全绿 49 项）。
 
 > widget 测试驱动滚轮的坑（v3.11 定案）：瞬移式单次 moveBy 不产生滚动，须分步 moveBy（10px×N）+pump；慢拖恰好 48px 会停在格边界被吸附弹回，须拖 1.25 格（60px）跨过边界。

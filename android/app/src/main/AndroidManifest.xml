@@ -32,11 +32,89 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+        </activity>
+        <!-- 桌面图标随主题配色切换：每套配色一个 alias（alias_<key>，指向专属图标
+             ic_launcher_<key>），同一时刻只启用一个（MainActivity.setIcon 启停：
+             键与 Dart 侧 AppPalette.name 一致、大小写不敏感；先启用目标再禁用其余）。
+             清单默认启用浅紫（App 默认配色）。Dart 侧在应用退后台时才执行切换
+             （前台禁用任务基座 alias 会被部分 ROM 结束应用，iQOO 实测）。 -->
+        <activity-alias
+            android:name=".alias_lightpurple"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_lightpurple"
+            android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name=".alias_deeppurple"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_deeppurple"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".alias_cyan"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_cyan"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".alias_yellow"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_yellow"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".alias_lightblue"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_lightblue"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".alias_pink"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_pink"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".alias_green"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_green"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

@@ -5,7 +5,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../controllers/presets_controller.dart';
 import '../../controllers/settings_controller.dart';
 import '../../core/format.dart';
+import '../../models/app_palette.dart';
 import '../../services/native_channel.dart';
+import '../widgets/app_icon.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -146,6 +148,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with WidgetsBinding
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
+          _section(theme, '主题'),
+          ListTile(
+            leading: AppIcon(size: 32, palette: settings.palette),
+            title: const Text('主题色'),
+            subtitle: Text('${settings.palette.label} · 应用主题与桌面图标一起换色'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: _pickPalette,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _themeModeButton(settings),
+          ),
           _section(theme, '时钟样式'),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -290,7 +304,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with WidgetsBinding
             dense: true,
             leading: Icon(Icons.verified_outlined),
             title: Text('版本'),
-            subtitle: Text('v1.0.8'),
+            subtitle: Text('v1.0.19'),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -327,7 +341,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with WidgetsBinding
           const AboutListTile(
             icon: Icon(Icons.info_outline_rounded),
             applicationName: '计时器',
-            applicationVersion: 'v1.0.8',
+            applicationVersion: 'v1.0.19',
             aboutBoxChildren: [Text('倒计时(圆形/电子时钟) + 时间段标记 + 剩余提醒 + 考试模式 + 历史记录 + 伪熄屏常亮 + 悬浮窗/常驻通知 + 勿扰联动 + 会话恢复')],
           ),
         ],
@@ -346,6 +360,149 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with WidgetsBinding
     if (sec < 60) return '$sec 秒';
     if (sec % 60 == 0) return '${sec ~/ 60} 分钟';
     return '${sec.toStringAsFixed(0)} 秒';
+  }
+
+  // ---------- 主题：配色 + 日/夜间模式 ----------
+
+  /// 日/夜间模式切换（设置区块与配色弹窗共用一份）。
+  Widget _themeModeButton(SettingsState settings) {
+    return SegmentedButton<AppThemeMode>(
+      segments: [
+        ButtonSegment(
+          value: AppThemeMode.system,
+          icon: const Icon(Icons.brightness_auto_outlined),
+          label: Text(AppThemeMode.system.label),
+        ),
+        ButtonSegment(
+          value: AppThemeMode.light,
+          icon: const Icon(Icons.light_mode_outlined),
+          label: Text(AppThemeMode.light.label),
+        ),
+        ButtonSegment(
+          value: AppThemeMode.dark,
+          icon: const Icon(Icons.dark_mode_outlined),
+          label: Text(AppThemeMode.dark.label),
+        ),
+      ],
+      selected: {settings.themeMode},
+      onSelectionChanged: (s) => ref.read(settingsProvider.notifier).setThemeMode(s.first),
+    );
+  }
+
+  /// 配色选择弹窗：宽度占屏 90%（放三列图标），每个选项渲染该配色的 App 图标
+  /// 本体（所见即所得），点选立即生效（弹窗后面的整页主题实时预览）。
+  Future<void> _pickPalette() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Consumer(
+        builder: (context, ref, _) {
+          final settings = ref.watch(settingsProvider);
+          return AlertDialog(
+            insetPadding: EdgeInsets.symmetric(
+              horizontal: MediaQuery.of(context).size.width * 0.05,
+            ),
+            title: const Text('主题色'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // 恒三列：项宽 = (可用宽 - 2 间距)/3，图标随项宽缩放。
+                  // 下限 64 保住超窄屏（此时才允许降级两列）。
+                  final itemW = ((constraints.maxWidth - 24) / 3).clamp(64.0, 104.0);
+                  final iconSize = itemW * 0.62;
+                  // 网格实际占宽（项宽触到 clamp 上/下限时会小于可用宽）：
+                  // 弹窗内容整体收敛到这个宽度，日/夜间选择器与之同宽
+                  // （左右边缘对齐第一/第三个配色按钮）。
+                  final perRow = (((constraints.maxWidth + 12) / (itemW + 12)).floor()).clamp(1, 3);
+                  final gridW = perRow * itemW + (perRow - 1) * 12;
+                  return SizedBox(
+                    width: gridW,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: [
+                            for (final p in AppPalette.values)
+                              _paletteOption(
+                                context,
+                                ref,
+                                p,
+                                selected: settings.palette == p,
+                                width: itemW,
+                                iconSize: iconSize,
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        _themeModeButton(settings),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('关闭')),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _paletteOption(
+    BuildContext context,
+    WidgetRef ref,
+    AppPalette p, {
+    required bool selected,
+    required double width,
+    required double iconSize,
+  }) {
+    final theme = Theme.of(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => ref.read(settingsProvider.notifier).setPalette(p),
+      child: Container(
+        width: width,
+        padding: const EdgeInsets.fromLTRB(6, 8, 6, 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? theme.colorScheme.primary : theme.colorScheme.outlineVariant,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                AppIcon(size: iconSize, palette: p),
+                if (selected)
+                  Positioned(
+                    right: -8,
+                    bottom: -8,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: theme.colorScheme.surface, width: 2),
+                      ),
+                      padding: const EdgeInsets.all(2),
+                      child: Icon(Icons.check, size: 12, color: theme.colorScheme.onPrimary),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(p.label, style: theme.textTheme.bodySmall),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _pickIdleTimeout(int current) async {

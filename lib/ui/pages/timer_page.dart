@@ -78,7 +78,7 @@ class _TimerPageState extends ConsumerState<TimerPage> {
               ? GestureDetector(
                   onLongPress: () {
                     debugPrint('[timer] overlay hook');
-                    NativeChannel.overlayShow('00:10 测试');
+                    NativeChannel.overlayShow(remainingMs: 10 * 1000, totalMs: 60 * 1000);
                   },
                   child: const Text('计时'),
                 )
@@ -147,7 +147,7 @@ class _TimerPageState extends ConsumerState<TimerPage> {
                   ref.read(presetEditingProvider.notifier).state = false;
                 }
               : null,
-          child: const Text('开始', style: TextStyle(fontSize: 18)),
+          child: const Text('开始', style: TextStyle(fontSize: 22)),
         ),
         const SizedBox(height: 24),
       ],

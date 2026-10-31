@@ -63,7 +63,9 @@ class NativeChannel {
 
   // ---------- 悬浮窗 ----------
 
-  static Future<void> overlayShow(String text) => _inv('overlayShow', {'text': text});
+  /// 显示后台倒计时悬浮窗；传 剩余/总时长 毫秒（原生侧自格式化文本并驱动进度条颜色）。
+  static Future<void> overlayShow({required int remainingMs, required int totalMs}) =>
+      _inv('overlayShow', {'remainingMs': remainingMs, 'totalMs': totalMs});
 
   static Future<void> overlayHide() => _inv('overlayHide');
 
@@ -99,6 +101,11 @@ class NativeChannel {
   static Future<void> brightnessSet(double value) => _inv('brightnessSet', {'value': value});
 
   static Future<void> brightnessReset() => _inv('brightnessReset');
+
+  // ---------- 桌面图标：随主题配色切换（原生 activity-alias 启停） ----------
+
+  /// [key] 为 `AppPalette.name`，与原生 alias 名（`alias_<key>`）一致。
+  static Future<void> setIcon(String key) => _inv('setIcon', {'key': key});
 
   // ---------- 音频文件 ----------
 

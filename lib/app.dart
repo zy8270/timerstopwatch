@@ -8,27 +8,36 @@ import '../controllers/fake_sleep_controller.dart';
 import '../controllers/presets_controller.dart';
 import '../controllers/settings_controller.dart';
 import '../controllers/timer_controller.dart';
-import '../core/format.dart';
+import '../models/app_palette.dart';
 import '../services/native_channel.dart';
 import 'ui/pages/history_page.dart';
 import 'ui/pages/settings_page.dart';
 import 'ui/pages/timer_page.dart';
 import 'ui/widgets/fake_sleep_layer.dart';
 
-class TimerApp extends StatelessWidget {
+class TimerApp extends ConsumerWidget {
   const TimerApp({super.key});
 
+  /// ThemeData 按（配色 × 明暗）缓存：fromSeed 计算不便宜，且 watch 逐帧重建。
+  static final Map<(AppPalette, Brightness), ThemeData> _themeCache = {};
+
+  ThemeData _themeOf(AppPalette palette, Brightness brightness) => _themeCache.putIfAbsent(
+        (palette, brightness),
+        () => ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: palette.seed, brightness: brightness),
+          useMaterial3: true,
+        ),
+      );
+
   @override
-  Widget build(BuildContext context) {
-    const seed = Color(0xFF3F6DF5);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(settingsProvider.select((s) => s.palette));
+    final themeMode = ref.watch(settingsProvider.select((s) => s.themeMode)).themeMode;
     return MaterialApp(
       title: '计时器',
-      theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: seed), useMaterial3: true),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.dark),
-        useMaterial3: true,
-      ),
-      themeMode: ThemeMode.system,
+      theme: _themeOf(palette, Brightness.light),
+      darkTheme: _themeOf(palette, Brightness.dark),
+      themeMode: themeMode,
       locale: const Locale('zh', 'CN'),
       supportedLocales: const [Locale('zh', 'CN'), Locale('en', 'US')],
       localizationsDelegates: const [
@@ -57,6 +66,13 @@ class _NavShellState extends ConsumerState<NavShell> with WidgetsBindingObserver
   bool _overlayGuidePending = false;
   Timer? _idleTimer;
 
+  /// 待生效的桌面图标配色键（= AppPalette.name）。
+  ///
+  /// 桌面图标切换**延迟到应用退后台时执行**：禁用当前前台任务基座所在的
+  /// activity-alias 会被部分 ROM（iQOO 真机实测）直接结束整个应用——切完配色
+  /// 就退出正是这个原因。退后台后再启停 alias 用户无感（会话快照兜底恢复）。
+  String? _pendingIconKey;
+
   @override
   void initState() {
     super.initState();
@@ -68,6 +84,9 @@ class _NavShellState extends ConsumerState<NavShell> with WidgetsBindingObserver
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (ref.read(timerProvider).isSessionActive) _restartIdleTimer();
     });
+    // 桌面图标与主题配色联动：每次启动都登记一次待同步键（覆盖安装/清数据后
+    // 个别 ROM 的 alias 状态可能与持久化配色不一致），随首次退后台幂等重设。
+    _pendingIconKey = ref.read(settingsProvider).palette.name;
   }
 
   @override
@@ -84,6 +103,9 @@ class _NavShellState extends ConsumerState<NavShell> with WidgetsBindingObserver
         ref.read(timerProvider.notifier).onNotificationMark();
       case 'onRingStopped':
         ref.read(timerProvider.notifier).onRingStoppedExternally();
+      case 'onOverlayResume':
+        // 悬浮窗「继续计时」按钮：远程继续暂停中的倒计时（不拉起应用）。
+        ref.read(timerProvider.notifier).resume();
     }
   }
 
@@ -123,6 +145,18 @@ class _NavShellState extends ConsumerState<NavShell> with WidgetsBindingObserver
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final timer = ref.read(timerProvider);
+    // 退后台/销毁时才切换桌面图标：前台禁用任务基座 alias 会被部分 ROM 结束应用
+    // （见 _pendingIconKey 注释）。此时应用已不可见，被系统收掉任务也无感。
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      final key = _pendingIconKey;
+      if (key != null) {
+        debugPrint('[timer] lifecycle=$state, flush icon: $key');
+        _pendingIconKey = null;
+        NativeChannel.setIcon(key);
+      }
+    }
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
       _idleTimer?.cancel();
       if (timer.isSessionActive) {
@@ -138,7 +172,10 @@ class _NavShellState extends ConsumerState<NavShell> with WidgetsBindingObserver
   Future<void> _onGoBackground() async {
     final timer = ref.read(timerProvider);
     if (await NativeChannel.overlayGranted()) {
-      await NativeChannel.overlayShow(formatClock(timer.remaining));
+      await NativeChannel.overlayShow(
+        remainingMs: timer.remaining.inMilliseconds,
+        totalMs: timer.total.inMilliseconds,
+      );
       return;
     }
     final settings = ref.read(settingsProvider);
@@ -207,6 +244,14 @@ class _NavShellState extends ConsumerState<NavShell> with WidgetsBindingObserver
       } else if (was && !active) {
         _idleTimer?.cancel();
         ref.read(fakeSleepProvider.notifier).exit();
+      }
+    });
+
+    // 切换主题配色时只登记待生效键，实际桌面图标切换延迟到退后台（iQOO 前台切会被结束应用）。
+    ref.listen(settingsProvider.select((s) => s.palette), (prev, next) {
+      if (prev != next) {
+        debugPrint('[timer] palette changed: ${next.name}, pending icon');
+        _pendingIconKey = next.name;
       }
     });
 

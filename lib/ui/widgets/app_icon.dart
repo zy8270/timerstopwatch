@@ -2,17 +2,24 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// App 图标绘制：深紫→亮紫对角渐变底 + 白色扁平秒表（表盘 + 顶部小按钮 + 表盘内斜放沙漏）。
+import '../../models/app_palette.dart';
+
+/// App 图标绘制：配色深→亮对角渐变底（**圆角矩形**，半径为边长的 20%，
+/// 与桌面圆角图标观感一致——部分桌面不按 adaptive 遮罩渲染、直接取位图，
+/// 位图必须自带圆角）+ 白色扁平秒表（表盘 + 顶部小按钮 + 表盘内斜放沙漏）。
 /// 图形整体按包围盒垂直居中（表盘圆心略下移，补偿顶部按钮占的高度）。
 ///
 /// 本类同时是桌面图标的"源文件"：test/icon_golden_test.dart 用它离屏渲染
 /// 出各密度的 PNG（legacy ic_launcher 与 adaptive 前景层），不依赖外部图片。
+/// 渐变颜色取 [palette]（主题配色联动），默认深紫（v3.3 定案的原始配色）。
 class AppIcon extends StatelessWidget {
   const AppIcon({
     super.key,
     required this.size,
     this.showBackground = true,
     this.glyphScale = 0.60,
+    this.palette = AppPalette.deepPurple,
+    this.cornerRadiusRatio = 0.20,
   });
 
   /// 逻辑边长。
@@ -24,26 +31,44 @@ class AppIcon extends StatelessWidget {
   /// 秒表图形占画布的比例（adaptive 前景须落在 66/108 安全区内）。
   final double glyphScale;
 
+  /// 配色（渐变两端色）。
+  final AppPalette palette;
+
+  /// 背景圆角半径占边长的比例（仅 showBackground 时生效；adaptive 前景透明无圆角）。
+  final double cornerRadiusRatio;
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: size,
       height: size,
       child: CustomPaint(
-        painter: _AppIconPainter(showBackground: showBackground, glyphScale: glyphScale),
+        painter: _AppIconPainter(
+          showBackground: showBackground,
+          glyphScale: glyphScale,
+          gradientStart: palette.iconStart,
+          gradientEnd: palette.iconEnd,
+          cornerRadiusRatio: cornerRadiusRatio,
+        ),
       ),
     );
   }
 }
 
-const Color _deepPurple = Color(0xFF4A0E9B);
-const Color _brightPurple = Color(0xFFA855F7);
-
 class _AppIconPainter extends CustomPainter {
-  _AppIconPainter({required this.showBackground, required this.glyphScale});
+  _AppIconPainter({
+    required this.showBackground,
+    required this.glyphScale,
+    required this.gradientStart,
+    required this.gradientEnd,
+    required this.cornerRadiusRatio,
+  });
 
   final bool showBackground;
   final double glyphScale;
+  final Color gradientStart;
+  final Color gradientEnd;
+  final double cornerRadiusRatio;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -55,9 +80,12 @@ class _AppIconPainter extends CustomPainter {
         ..shader = LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: const [_deepPurple, _brightPurple],
+          colors: [gradientStart, gradientEnd],
         ).createShader(rect);
-      canvas.drawRect(rect, bg);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, Radius.circular(s * cornerRadiusRatio)),
+        bg,
+      );
     }
 
     final g = s * glyphScale; // 秒表图形的基准边长
@@ -112,5 +140,9 @@ class _AppIconPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_AppIconPainter old) =>
-      old.showBackground != showBackground || old.glyphScale != glyphScale;
+      old.showBackground != showBackground ||
+      old.glyphScale != glyphScale ||
+      old.gradientStart != gradientStart ||
+      old.gradientEnd != gradientEnd ||
+      old.cornerRadiusRatio != cornerRadiusRatio;
 }

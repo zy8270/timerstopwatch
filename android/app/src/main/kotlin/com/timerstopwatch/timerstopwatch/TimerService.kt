@@ -100,7 +100,7 @@ class TimerService : Service() {
             val n = buildCountdownNotification()
             val nm = getSystemService(NotificationManager::class.java)
             nm?.notify(ID_COUNTDOWN, n)
-            OverlayWindow.update(formatMs(remaining))
+            OverlayWindow.update(remaining, totalMs)
         }
     }
 
@@ -121,6 +121,7 @@ class TimerService : Service() {
         paused = true
         pausedRemainingMs = remainingMs
         cancelAlarm()
+        OverlayWindow.setPaused(true)
         val nm = getSystemService(NotificationManager::class.java)
         nm?.notify(ID_COUNTDOWN, buildCountdownNotification())
     }
@@ -129,6 +130,7 @@ class TimerService : Service() {
         paused = false
         endWall = endWallMs
         scheduleAlarm(endWall)
+        OverlayWindow.setPaused(false)
         val nm = getSystemService(NotificationManager::class.java)
         nm?.notify(ID_COUNTDOWN, buildCountdownNotification())
         handler.removeCallbacks(ticker)

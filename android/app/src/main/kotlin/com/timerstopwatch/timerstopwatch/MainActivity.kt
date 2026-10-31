@@ -2,7 +2,9 @@ package com.timerstopwatch.timerstopwatch
 
 import android.Manifest
 import android.app.AlarmManager
+import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
@@ -86,7 +88,11 @@ class MainActivity : FlutterActivity() {
                     }
                     // ---- 悬浮窗 ----
                     "overlayShow" -> {
-                        OverlayWindow.show(this, call.argument<String>("text") ?: "")
+                        OverlayWindow.show(
+                            this,
+                            (call.argument<Number>("remainingMs") ?: 0L).toLong(),
+                            (call.argument<Number>("totalMs") ?: 0L).toLong()
+                        )
                         result.success(null)
                     }
                     "overlayHide" -> {
@@ -138,6 +144,11 @@ class MainActivity : FlutterActivity() {
                         window.attributes = window.attributes.apply { screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE }
                         result.success(null)
                     }
+                    // ---- 桌面图标随主题配色切换（activity-alias 启停） ----
+                    "setIcon" -> {
+                        setLauncherAlias(call.argument<String>("key") ?: "lightpurple")
+                        result.success(null)
+                    }
                     // ---- 音频导入 ----
                     "pickAudio" -> pickAudio(result)
                     "deleteAudio" -> {
@@ -154,6 +165,36 @@ class MainActivity : FlutterActivity() {
     override fun onDestroy() {
         OverlayWindow.hide()
         super.onDestroy()
+    }
+
+    // ---------- 桌面图标：activity-alias 启停 ----------
+
+    /**
+     * 每套主题配色一个 alias（alias_<key>，各自指向专属图标资源），同一时刻只启用一个。
+     * DONT_KILL_APP：切换时进程不重启（正在计时/前台服务不受影响）。
+     *
+     * 键大小写不敏感（Dart 枚举 name 为驼峰 lightPurple，资源键为小写 lightpurple）；
+     * 未知键一律回落 lightpurple——任何输入都必须保证留有一个可启动的桌面入口。
+     * 顺序：先启用目标、再禁用其余——过渡期桌面始终有可用入口，降低任务被系统收掉的概率
+     * （Dart 侧另把切换时机延迟到应用退后台，见 NavShell._pendingIconKey）。
+     */
+    private fun setLauncherAlias(rawKey: String) {
+        val key = ICON_KEYS.firstOrNull { it.equals(rawKey, ignoreCase = true) } ?: "lightpurple"
+        val pm = packageManager
+        fun setEnabled(k: String, enabled: Boolean) {
+            pm.setComponentEnabledSetting(
+                ComponentName(this, "$packageName.alias_$k"),
+                if (enabled)
+                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                else
+                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP
+            )
+        }
+        setEnabled(key, true)
+        for (k in ICON_KEYS) {
+            if (k != key) setEnabled(k, false)
+        }
     }
 
     // ---------- 权限 ----------
@@ -247,6 +288,9 @@ class MainActivity : FlutterActivity() {
         const val CHANNEL = "timerstopwatch/app"
         const val RC_NOTIF = 200
         const val RC_PICK_AUDIO = 201
+
+        /** 桌面图标 alias 键集合（与 Dart 侧 AppPalette.name 一一对应）。 */
+        val ICON_KEYS = listOf("lightpurple", "deeppurple", "cyan", "yellow", "lightblue", "pink", "green")
 
         @Volatile
         var dartChannel: MethodChannel? = null

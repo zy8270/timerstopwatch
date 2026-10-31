@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/app_palette.dart';
 import '../services/shared_prefs_provider.dart';
 
 // 简单日志出口（避免在纯逻辑层引入 flutter 依赖）。
@@ -50,6 +51,8 @@ class SettingsState {
     this.thresholds = const [],
     this.examModeEnabled = false,
     this.clockStyle = ClockStyle.digital,
+    this.palette = AppPalette.lightPurple,
+    this.themeMode = AppThemeMode.system,
     this.notifGuideDone = false,
     this.overlayGuideDone = false,
   });
@@ -69,6 +72,13 @@ class SettingsState {
 
   /// 倒计时显示样式（圆形/电子时钟）。
   final ClockStyle clockStyle;
+
+  /// 主题配色（App 主题 + 桌面图标联动）。
+  final AppPalette palette;
+
+  /// 日/夜间模式。
+  final AppThemeMode themeMode;
+
   final bool notifGuideDone;
   final bool overlayGuideDone;
 
@@ -98,6 +108,8 @@ class SettingsState {
       thresholds: thresholds,
       examModeEnabled: prefs.getBool(_kExamMode) ?? false,
       clockStyle: ClockStyle.fromName(prefs.getString(_kClockStyle)),
+      palette: AppPalette.fromName(prefs.getString(_kPalette)),
+      themeMode: AppThemeMode.fromName(prefs.getString(_kThemeMode)),
       notifGuideDone: prefs.getBool(_kGuideNotif) ?? false,
       overlayGuideDone: prefs.getBool(_kGuideOverlay) ?? false,
     );
@@ -114,6 +126,8 @@ class SettingsState {
     List<ReminderRule>? thresholds,
     bool? examModeEnabled,
     ClockStyle? clockStyle,
+    AppPalette? palette,
+    AppThemeMode? themeMode,
     bool? notifGuideDone,
     bool? overlayGuideDone,
   }) {
@@ -128,6 +142,8 @@ class SettingsState {
       thresholds: thresholds ?? this.thresholds,
       examModeEnabled: examModeEnabled ?? this.examModeEnabled,
       clockStyle: clockStyle ?? this.clockStyle,
+      palette: palette ?? this.palette,
+      themeMode: themeMode ?? this.themeMode,
       notifGuideDone: notifGuideDone ?? this.notifGuideDone,
       overlayGuideDone: overlayGuideDone ?? this.overlayGuideDone,
     );
@@ -205,6 +221,16 @@ class SettingsController extends Notifier<SettingsState> {
     await _prefs.setString(_kClockStyle, v.name);
   }
 
+  Future<void> setPalette(AppPalette v) async {
+    state = state.copyWith(palette: v);
+    await _prefs.setString(_kPalette, v.name);
+  }
+
+  Future<void> setThemeMode(AppThemeMode v) async {
+    state = state.copyWith(themeMode: v);
+    await _prefs.setString(_kThemeMode, v.name);
+  }
+
   Future<void> markNotifGuideDone() async {
     state = state.copyWith(notifGuideDone: true);
     await _prefs.setBool(_kGuideNotif, true);
@@ -226,6 +252,8 @@ const String _kIdleTimeout = 'idle_timeout_sec';
 const String _kThresholds = 'reminder_thresholds';
 const String _kExamMode = 'exam_mode_enabled';
 const String _kClockStyle = 'clock_style';
+const String _kPalette = 'theme_palette';
+const String _kThemeMode = 'theme_mode';
 const String _kGuideNotif = 'guide_notif_done';
 const String _kGuideOverlay = 'guide_overlay_done';
 
